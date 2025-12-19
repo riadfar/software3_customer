@@ -1,0 +1,171 @@
+@startuml Chain of Responsibility - Request Flow Sequence
+
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+skinparam ParticipantPadding 20
+
+title Chain of Responsibility - Request Processing Flow\n(Example: NetworkFacade.get() → RemoteApi)
+
+actor "API Class\n(AuthApi)" as API
+participant "NetworkFacade" as Facade
+participant "RequestChain" as Chain
+participant "TokenInjection\nHandler" as TokenHandler
+participant "RequestValidation\nHandler" as ValidationHandler
+participant "HeaderConstruction\nHandler" as HeaderHandler
+participant "SecureStorage" as Storage
+participant "RemoteApi" as Remote
+participant "ErrorTransformation\nHandler" as ErrorHandler
+participant "ResponseLogging\nHandler" as LogHandler
+participant "Backend\nServer" as Backend
+
+== Phase 1: Request Initialization ==
+
+API -> Facade: get(url, requiresAuth: true)
+activate Facade
+
+Facade -> Facade: _buildHeaders()\n(get token, build headers)
+activate Facade
+Facade -> Storage: getToken()
+activate Storage
+Storage --> Facade: token
+deactivate Storage
+deactivate Facade
+
+Facade -> Chain: processRequest(context)
+activate Chain
+
+Facade -> Chain: RequestContext created\n(url, method, headers, token, requiresAuth)
+note right: Context carries all\nrequest data through chain
+
+== Phase 2: Request Processing Chain ==
+
+Chain -> TokenHandler: handle(context)
+activate TokenHandler
+
+TokenHandler -> TokenHandler: doHandle(context)
+TokenHandler -> Storage: getToken() [if not in context]
+activate Storage
+Storage --> TokenHandler: latest token
+deactivate Storage
+TokenHandler -> TokenHandler: context.setToken(token)
+
+TokenHandler -> ValidationHandler: passToNext(context)
+deactivate TokenHandler
+activate ValidationHandler
+
+ValidationHandler -> ValidationHandler: doHandle(context)
+ValidationHandler -> ValidationHandler: validate URL format\nvalidate required fields\ncheck request structure
+note right: Internal validation only\nNo API contract changes
+
+ValidationHandler -> HeaderHandler: passToNext(context)
+deactivate ValidationHandler
+activate HeaderHandler
+
+HeaderHandler -> HeaderHandler: doHandle(context)
+HeaderHandler -> HeaderHandler: merge headers\nensure Content-Type\nfinalize header structure
+
+HeaderHandler --> Chain: context (processed)
+deactivate HeaderHandler
+
+== Phase 3: HTTP Request ==
+
+Chain -> Remote: get(context.url, headers: context.headers)
+activate Remote
+
+Remote -> Backend: HTTP GET request\n(with processed headers)
+activate Backend
+Backend --> Remote: HTTP Response\n(Response object)
+deactivate Backend
+
+Remote --> Chain: Response object
+deactivate Remote
+
+Chain -> Chain: context.setResponse(response)
+
+== Phase 4: Response Processing Chain ==
+
+Chain -> ErrorHandler: handle(context) [if error occurred]
+activate ErrorHandler
+
+alt Error occurred
+    ErrorHandler -> ErrorHandler: doHandle(context)
+    ErrorHandler -> ErrorHandler: Transform DioException\n→ NetworkException\n→ CustomError format
+    note right: Error transformation\nhappens internally
+    ErrorHandler -> ErrorHandler: context.setError(transformedError)
+else Success
+    ErrorHandler -> ErrorHandler: Pass through unchanged
+end
+
+ErrorHandler -> LogHandler: passToNext(context)
+deactivate ErrorHandler
+activate LogHandler
+
+LogHandler -> LogHandler: doHandle(context)
+LogHandler -> LogHandler: Log request details\nLog response data\n[Optional: can be disabled]
+
+LogHandler --> Chain: context (final)
+deactivate LogHandler
+
+== Phase 5: Response Return ==
+
+Chain --> Facade: RequestContext\n(with response.data)
+deactivate Chain
+
+Facade -> Facade: Extract context.response.data
+Facade --> API: Map<String, dynamic>
+deactivate Facade
+
+== Error Flow (Alternative) ==
+
+note over Chain, ErrorHandler
+  **Error Handling:**
+  
+  If error occurs at any point:
+  1. Error caught by handler
+  2. Passed to ErrorTransformationHandler
+  3. Transformed to consistent format
+  4. Context.error set
+  5. Returned to Facade
+  6. Facade rethrows (maintains compatibility)
+end note
+
+== Benefits Highlighted ==
+
+note over Facade, Chain
+  **Pattern Synergy:**
+  
+  **Facade:**
+  • Simplifies interface (existing)
+  • Handles token/headers (existing)
+  • Initiates chain (new)
+  
+  **Chain:**
+  • Processes request (new)
+  • Transforms errors (new)
+  • Logs responses (new)
+  
+  **Separation:**
+  • Facade = Interface simplification
+  • Chain = Processing pipeline
+end note
+
+note over TokenHandler, HeaderHandler
+  **Single Responsibility:**
+  
+  Each handler does ONE thing:
+  • TokenHandler: Token injection
+  • ValidationHandler: Request validation
+  • HeaderHandler: Header construction
+  • ErrorHandler: Error transformation
+  • LogHandler: Response logging
+  
+  **Benefits:**
+  • Easy to test
+  • Easy to modify
+  • Easy to add/remove
+end note
+
+@enduml
+

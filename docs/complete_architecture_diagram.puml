@@ -1,0 +1,293 @@
+@startuml Complete Architecture - All Three Patterns
+
+!theme plain
+skinparam classAttributeIconSize 0
+skinparam backgroundColor #FFFFFF
+skinparam package {
+    BackgroundColor #F0F8FF
+    BorderColor #4169E1
+}
+
+title Complete Architecture - Three Design Patterns Integration\nFacade + Chain of Responsibility + Observer
+
+package "Client Layer" #FFE5E5 {
+    class AuthApi
+    class AccountApi
+    class TransactionApi
+    
+    note right of AuthApi
+      **API Classes:**
+      Simple interface
+      No complexity
+      Just call Facade
+    end note
+}
+
+package "Facade Pattern\n(Interface Simplification)" #E5F5E5 {
+    class NetworkFacade {
+        + post(...)
+        + get(...)
+        + put(...)
+        + delete(...)
+        --
+        **Responsibilities:**
+        • Token retrieval
+        • Header construction
+        • Chain initiation
+        • Event publishing
+        • Response extraction
+    }
+    
+    note bottom of NetworkFacade
+      **Facade Benefits:**
+      • Single entry point
+      • Simplified interface
+      • Encapsulates complexity
+    end note
+}
+
+package "Chain of Responsibility\n(Processing Pipeline)" #FFF5E5 {
+    class RequestChain {
+        + processRequest(context)
+        + processResponse(context)
+    }
+    
+    abstract class RequestHandler
+    class TokenInjectionHandler
+    class RequestValidationHandler
+    class HeaderConstructionHandler
+    class ErrorTransformationHandler
+    class ResponseLoggingHandler
+    
+    RequestHandler <|-- TokenInjectionHandler
+    RequestHandler <|-- RequestValidationHandler
+    RequestHandler <|-- HeaderConstructionHandler
+    RequestHandler <|-- ErrorTransformationHandler
+    RequestHandler <|-- ResponseLoggingHandler
+    
+    RequestChain --> RequestHandler : manages
+    
+    note right of RequestChain
+      **Chain Benefits:**
+      • Extensible pipeline
+      • Single responsibility
+      • Testable components
+    end note
+}
+
+package "Observer Pattern\n(Event Notification)" #E5FFE5 {
+    class NetworkEventBus {
+        + attach(observer)
+        + detach(observer)
+        + notify(event)
+        + notifyError(event)
+        + notifySuccess(event)
+        + notifyRequest(event)
+    }
+    
+    interface NetworkObserver
+    class ErrorAnalyticsObserver
+    class CrashReportingObserver
+    class RequestMetricsObserver
+    class NetworkStateObserver
+    class DebugLoggingObserver
+    
+    NetworkObserver <|.. ErrorAnalyticsObserver
+    NetworkObserver <|.. CrashReportingObserver
+    NetworkObserver <|.. RequestMetricsObserver
+    NetworkObserver <|.. NetworkStateObserver
+    NetworkObserver <|.. DebugLoggingObserver
+    
+    NetworkEventBus --> NetworkObserver : notifies
+    
+    note right of NetworkEventBus
+      **Observer Benefits:**
+      • Loose coupling
+      • Multiple listeners
+      • Easy to extend
+      • No code changes needed
+    end note
+}
+
+package "Infrastructure Layer" #E5E5FF {
+    class RemoteApi {
+        + post(...)
+        + get(...)
+        + put(...)
+        + delete(...)
+    }
+    
+    class SecureStorage {
+        + getToken()
+    }
+    
+    class Headers {
+        + headersWithAuth(token)
+        + headersWithAuthContent(token)
+    }
+}
+
+package "External Services" #F5F5F5 {
+    cloud "Backend\nAPI Server" as Backend
+    cloud "Analytics\nService" as Analytics
+    cloud "Crash\nReporting" as CrashReport
+}
+
+' ============================================
+' PATTERN RELATIONSHIPS
+' ============================================
+
+AuthApi --> NetworkFacade : uses
+AccountApi --> NetworkFacade : uses
+TransactionApi --> NetworkFacade : uses
+
+NetworkFacade --> RequestChain : initiates\n(delegates processing)
+NetworkFacade --> NetworkEventBus : publishes events
+NetworkFacade --> SecureStorage : uses
+NetworkFacade --> Headers : uses
+
+RequestChain --> RequestHandler : processes through
+RequestChain --> RemoteApi : calls after processing
+RequestChain --> NetworkEventBus : publishes events
+
+NetworkEventBus --> NetworkObserver : notifies all observers
+
+ErrorAnalyticsObserver --> Analytics : sends data
+CrashReportingObserver --> CrashReport : sends reports
+
+RemoteApi --> Backend : HTTP requests
+
+' ============================================
+' COMPLETE REQUEST FLOW
+' ============================================
+
+note top of AuthApi
+  **Complete Request Flow:**
+  
+  1. API calls NetworkFacade
+  2. Facade retrieves token, builds headers
+  3. Facade publishes NetworkRequestEvent
+  4. EventBus notifies all observers
+  5. Facade initiates RequestChain
+  6. Chain processes through handlers:
+     • Token injection
+     • Request validation
+     • Header construction
+  7. Chain calls RemoteApi
+  8. RemoteApi makes HTTP request
+  9. Response flows back through chain:
+     • Error transformation
+     • Response logging
+  10. Facade publishes NetworkSuccessEvent/NetworkErrorEvent
+  11. EventBus notifies all observers
+  12. Facade extracts response.data
+  13. API receives Map<String, dynamic>
+end note
+
+' ============================================
+' PATTERN SYNERGY
+' ============================================
+
+rectangle "Pattern Synergy" #FFFACD {
+    note as Synergy
+      **Three Patterns Working Together:**
+      
+      **Facade Pattern:**
+      • Simplifies interface (WHAT)
+      • Single entry point
+      • Hides complexity
+      
+      **Chain of Responsibility:**
+      • Processing pipeline (HOW)
+      • Extensible handlers
+      • Single responsibility
+      
+      **Observer Pattern:**
+      • Event notification (WHEN)
+      • Loose coupling
+      • Multiple listeners
+      
+      **Together:**
+      ✓ Clean architecture
+      ✓ Maintainable code
+      ✓ Extensible design
+      ✓ Zero breaking changes
+      ✓ Separation of concerns
+    end note
+}
+
+' ============================================
+' BENEFITS SUMMARY
+' ============================================
+
+rectangle "Architectural Benefits" #E8F5E9 {
+    note as Benefits
+      **Combined Benefits:**
+      
+      **Code Quality:**
+      ✓ Reduced complexity
+      ✓ Single responsibility
+      ✓ Testable components
+      ✓ Easy to maintain
+      
+      **Extensibility:**
+      ✓ Add new handlers easily
+      ✓ Add new observers easily
+      ✓ No code changes needed
+      ✓ Backward compatible
+      
+      **Performance:**
+      ✓ Efficient processing
+      ✓ Optional logging
+      ✓ Metrics collection
+      ✓ Error tracking
+      
+      **Developer Experience:**
+      ✓ Simple API interface
+      ✓ Clear separation
+      ✓ Easy to understand
+      ✓ Well documented
+    end note
+}
+
+' ============================================
+' RESPONSIBILITY MATRIX
+' ============================================
+
+rectangle "Responsibility Distribution" #F0E68C {
+    note as Responsibilities
+      **Who Does What:**
+      
+      **NetworkFacade:**
+      • Interface simplification
+      • Token/header management
+      • Chain initiation
+      • Event publishing
+      
+      **RequestChain:**
+      • Request preprocessing
+      • Response post-processing
+      • Handler orchestration
+      
+      **RequestHandlers:**
+      • Token injection
+      • Request validation
+      • Header construction
+      • Error transformation
+      • Response logging
+      
+      **NetworkEventBus:**
+      • Observer management
+      • Event broadcasting
+      
+      **Observers:**
+      • Analytics tracking
+      • Crash reporting
+      • Metrics collection
+      • State management
+      • Debug logging
+    end note
+}
+
+@enduml
+

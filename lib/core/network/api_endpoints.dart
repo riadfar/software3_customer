@@ -4,7 +4,7 @@ class ApiEndpoints {
 
   static String get baseUrl {
 
-    return 'http://10.206.88.242  :8000';
+    return 'http://192.168.1.110:8000';
 
   }
 

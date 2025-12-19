@@ -1,0 +1,160 @@
+@startuml Facade Pattern Implementation - Network Layer
+
+!theme plain
+skinparam classAttributeIconSize 0
+skinparam backgroundColor #FFFFFF
+skinparam class {
+    BackgroundColor #E8F4F8
+    BorderColor #2E86AB
+    ArrowColor #2E86AB
+}
+
+title Facade Design Pattern - Network Layer Architecture
+
+' ============================================
+' FACADE LAYER
+' ============================================
+class NetworkFacade {
+    - {static} _buildHeaders(headers, requiresAuth, includeContentType): Future<Map<String, String>>
+    - {static} _requiresAuthentication(headers, requiresAuth): bool
+    + {static} post(url, body, headers, requiresAuth): Future<Map<String, dynamic>>
+    + {static} get(url, headers, requiresAuth): Future<Map<String, dynamic>>
+    + {static} put(url, body, headers, requiresAuth): Future<Map<String, dynamic>>
+    + {static} delete(url, headers, requiresAuth): Future<Map<String, dynamic>>
+    + {static} postWithFile(url, fields, filePath, filesKey, requiresAuth): Future<Map<String, dynamic>>
+    --
+    **Responsibilities:**
+    • Automatically retrieves token from SecureStorage
+    • Constructs appropriate headers (auth/content-type)
+    • Provides simplified interface for API calls
+    • Maintains backward compatibility
+}
+
+' ============================================
+' UNDERLYING SYSTEM (What Facade Wraps)
+' ============================================
+class RemoteApi {
+    - {static} _dio: Dio
+    - {static} _checkResponseStatus(statusCode): void
+    - {static} _makeRequest(method, url, body, headers): Future<Response>
+    + {static} post(url, body, headers): Future<Response>
+    + {static} get(url, headers): Future<Response>
+    + {static} put(url, body, headers): Future<Response>
+    + {static} delete(url, headers): Future<Response>
+    + {static} postWithFile(url, fields, filePath, filesKey): Future<Response>
+    --
+    **Low-level HTTP client:**
+    • Direct Dio HTTP operations
+    • Response status validation
+    • Error handling
+}
+
+' ============================================
+' DEPENDENCIES
+' ============================================
+class SecureStorage {
+    + {static} getToken(): Future<String>
+    + {static} storeToken(token): Future<void>
+    + {static} removeToken(): Future<void>
+    --
+    **Token Management:**
+    • Secure token storage
+    • Token retrieval
+}
+
+class Headers {
+    + {static} headersWithContent: Map<String, String>
+    + {static} headersWithAuth(token): Map<String, String>
+    + {static} headersWithAuthContent(token): Map<String, String>
+    --
+    **Header Utilities:**
+    • Header construction helpers
+}
+
+' ============================================
+' API CLASSES (Consumers of Facade)
+' ============================================
+class AuthApi {
+    + login(data): Future<Map<String, dynamic>>
+    + getCustomerAccount(accountNumber, token): Future<Map<String, dynamic>>
+    + changePassword(data, token): Future<Map<String, dynamic>>
+    + logout(token): Future<Map<String, dynamic>>
+    --
+    **Before Refactoring:**
+    • Manual token retrieval
+    • Manual header construction
+    • Direct RemoteApi calls
+    --
+    **After Refactoring:**
+    • Uses NetworkFacade
+    • Simplified code
+    • Automatic token/headers
+}
+
+class AccountApi {
+    + getCustomerAccount(accountNumber, token): Future<Map<String, dynamic>>
+    + editCustomerInfo(token, accountNumber, body): Future<Map<String, dynamic>>
+    + freezeRequest(token, body): Future<Map<String, dynamic>>
+    + closureRequest(token, body): Future<Map<String, dynamic>>
+    + createSubAccount(token, body): Future<Map<String, dynamic>>
+    --
+    **To be refactored:**
+    • Will use NetworkFacade
+}
+
+class TransactionApi {
+    + transferRequest(token, body): Future<Map<String, dynamic>>
+    + deposit(token, body): Future<Map<String, dynamic>>
+    + recurringTransfer(token, body): Future<Map<String, dynamic>>
+    + getTransactionHistory(token): Future<Map<String, dynamic>>
+    + getRecurringTransfers(token): Future<Map<String, dynamic>>
+    --
+    **To be refactored:**
+    • Will use NetworkFacade
+}
+
+' ============================================
+' RELATIONSHIPS
+' ============================================
+NetworkFacade ..> RemoteApi : wraps\n(simplifies)
+NetworkFacade ..> SecureStorage : uses\n(gets token)
+NetworkFacade ..> Headers : uses\n(constructs headers)
+
+AuthApi ..> NetworkFacade : uses\n(simplified interface)
+AccountApi ..> NetworkFacade : will use
+TransactionApi ..> NetworkFacade : will use
+
+' ============================================
+' FLOW DIAGRAM
+' ============================================
+note right of NetworkFacade
+  **Facade Simplifies:**
+  
+  **Before:**
+  1. Get token from SecureStorage
+  2. Construct headers manually
+  3. Call RemoteApi
+  4. Extract response.data
+  
+  **After:**
+  1. Call NetworkFacade method
+  2. Get Map<String, dynamic> directly
+end note
+
+note right of AuthApi
+  **Refactored Example:**
+  
+  **Before:**
+  token = await SecureStorage.getToken()
+  response = await RemoteApi.get(
+    url,
+    headers: headersWithAuthContent(token)
+  )
+  return response.data
+  
+  **After:**
+  return await NetworkFacade.get(url)
+end note
+
+@enduml
+

@@ -1,0 +1,262 @@
+@startuml Facade + Chain of Responsibility Integration
+
+!theme plain
+skinparam classAttributeIconSize 0
+skinparam backgroundColor #FFFFFF
+skinparam package {
+    BackgroundColor #F0F8FF
+    BorderColor #4169E1
+}
+
+title Facade Pattern + Chain of Responsibility Pattern Integration\nHigh-Level Architecture Overview
+
+package "Client Layer" #FFE5E5 {
+    class AuthApi {
+        + login(data)
+        + getCustomerAccount(...)
+        + changePassword(...)
+        + logout(...)
+    }
+    
+    class AccountApi {
+        + getCustomerAccount(...)
+        + editCustomerInfo(...)
+    }
+    
+    class TransactionApi {
+        + transferRequest(...)
+        + deposit(...)
+    }
+    
+    note right of AuthApi
+      **API Classes:**
+      • Simple interface
+      • No token management
+      • No header construction
+      • Just call Facade methods
+    end note
+}
+
+package "Facade Layer\n(Interface Simplification)" #E5F5E5 {
+    class NetworkFacade {
+        + post(url, body, headers, requiresAuth)
+        + get(url, headers, requiresAuth)
+        + put(url, body, headers, requiresAuth)
+        + delete(url, headers, requiresAuth)
+        --
+        **Facade Responsibilities:**
+        • Token retrieval (existing)
+        • Header building (existing)
+        • Chain initiation (new)
+        • Response extraction (existing)
+        --
+        **Simplifies:**
+        • Hides complexity
+        • Provides unified interface
+        • Manages dependencies
+    }
+    
+    note bottom of NetworkFacade
+      **Facade Pattern Benefits:**
+      • Single entry point
+      • Simplified API
+      • Encapsulates complexity
+      • Maintains backward compatibility
+    end note
+}
+
+package "Chain of Responsibility Layer\n(Request Processing Pipeline)" #FFF5E5 {
+    class RequestChain {
+        + processRequest(context)
+        + processResponse(context)
+        + addHandler(handler)
+        --
+        **Orchestrates:**
+        • Handler execution order
+        • Context passing
+        • Chain traversal
+    }
+    
+    abstract class RequestHandler {
+        + handle(context)
+        # doHandle(context)
+        # passToNext(context)
+    }
+    
+    class TokenInjectionHandler extends RequestHandler {
+        + doHandle(context)
+    }
+    
+    class RequestValidationHandler extends RequestHandler {
+        + doHandle(context)
+    }
+    
+    class HeaderConstructionHandler extends RequestHandler {
+        + doHandle(context)
+    }
+    
+    class ErrorTransformationHandler extends RequestHandler {
+        + doHandle(context)
+    }
+    
+    class ResponseLoggingHandler extends RequestHandler {
+        + doHandle(context)
+    }
+    
+    note right of RequestChain
+      **Chain Pattern Benefits:**
+      • Flexible processing pipeline
+      • Single responsibility per handler
+      • Easy to extend/modify
+      • Testable components
+    end note
+    
+    note bottom of RequestHandler
+      **Handler Responsibilities:**
+      Each handler processes ONE aspect:
+      • Token injection
+      • Request validation
+      • Header construction
+      • Error transformation
+      • Response logging
+    end note
+}
+
+package "Infrastructure Layer" #E5E5FF {
+    class RemoteApi {
+        + post(url, body, headers)
+        + get(url, headers)
+        + put(url, body, headers)
+        + delete(url, headers)
+    }
+    
+    class SecureStorage {
+        + getToken()
+        + storeToken(token)
+    }
+    
+    class Headers {
+        + headersWithAuth(token)
+        + headersWithAuthContent(token)
+        + headersWithContent
+    }
+    
+    note right of RemoteApi
+      **Low-level HTTP Client:**
+      • Direct Dio operations
+      • Actual HTTP requests
+      • Response handling
+    end note
+}
+
+package "External" #F5F5F5 {
+    cloud "Backend\nAPI Server" as Backend
+}
+
+' ============================================
+' RELATIONSHIPS
+' ============================================
+
+AuthApi --> NetworkFacade : uses\n(simplified interface)
+AccountApi --> NetworkFacade : uses
+TransactionApi --> NetworkFacade : uses
+
+NetworkFacade --> RequestChain : initiates\n(delegates processing)
+NetworkFacade --> SecureStorage : uses\n(token retrieval)
+NetworkFacade --> Headers : uses\n(header construction)
+
+RequestChain --> RequestHandler : manages\n(handler collection)
+RequestHandler <|-- TokenInjectionHandler
+RequestHandler <|-- RequestValidationHandler
+RequestHandler <|-- HeaderConstructionHandler
+RequestHandler <|-- ErrorTransformationHandler
+RequestHandler <|-- ResponseLoggingHandler
+
+TokenInjectionHandler --> SecureStorage : uses
+RequestChain --> RemoteApi : calls\n(after processing)
+
+RemoteApi --> Backend : HTTP requests
+
+' ============================================
+' FLOW ANNOTATIONS
+' ============================================
+
+note top of AuthApi
+  **Request Flow:**
+  
+  1. API class calls NetworkFacade
+  2. Facade retrieves token, builds headers
+  3. Facade creates RequestContext
+  4. Facade initiates RequestChain
+  5. Chain processes through handlers
+  6. Chain calls RemoteApi
+  7. RemoteApi makes HTTP request
+  8. Response flows back through chain
+  9. Facade extracts response.data
+  10. API class receives Map<String, dynamic>
+end note
+
+note right of NetworkFacade
+  **Pattern Synergy:**
+  
+  **Facade Pattern:**
+  • Simplifies interface
+  • Hides complexity
+  • Single entry point
+  
+  **Chain Pattern:**
+  • Processing pipeline
+  • Extensible handlers
+  • Single responsibility
+  
+  **Together:**
+  • Facade = "What" (interface)
+  • Chain = "How" (processing)
+  • Clean separation of concerns
+end note
+
+note bottom of RequestChain
+  **Chain Execution Order:**
+  
+  **Request Phase:**
+  1. TokenInjectionHandler
+  2. RequestValidationHandler
+  3. HeaderConstructionHandler
+  4. → RemoteApi (HTTP call)
+  
+  **Response Phase:**
+  5. ErrorTransformationHandler
+  6. ResponseLoggingHandler
+  7. → NetworkFacade (extract data)
+end note
+
+' ============================================
+' BENEFITS SUMMARY
+' ============================================
+
+rectangle "Design Benefits" #E8F5E9 {
+    note as Benefits
+      **Combined Pattern Benefits:**
+      
+      **From Facade:**
+      ✓ Simplified API interface
+      ✓ Encapsulated complexity
+      ✓ Backward compatibility
+      ✓ Single entry point
+      
+      **From Chain:**
+      ✓ Extensible processing
+      ✓ Single responsibility
+      ✓ Testable components
+      ✓ Flexible pipeline
+      
+      **Together:**
+      ✓ Clean architecture
+      ✓ Maintainable code
+      ✓ Easy to extend
+      ✓ Zero breaking changes
+    end note
+}
+
+@enduml
+

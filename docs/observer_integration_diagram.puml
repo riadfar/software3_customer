@@ -1,0 +1,234 @@
+@startuml Observer Pattern - Integration with Existing Patterns
+
+!theme plain
+skinparam classAttributeIconSize 0
+skinparam backgroundColor #FFFFFF
+skinparam package {
+    BackgroundColor #F0F8FF
+    BorderColor #4169E1
+}
+
+title Observer Pattern Integration\nHow Observer Works with Facade and Chain
+
+package "Entry Point" #E5F5E5 {
+    class NetworkFacade {
+        - eventBus: NetworkEventBus
+        + post(...): Future<Map<String, dynamic>>
+        + get(...): Future<Map<String, dynamic>>
+        --
+        **Event Publishing Points:**
+        • Before request → NetworkRequestEvent
+        • On success → NetworkSuccessEvent
+        • On error → NetworkErrorEvent
+    }
+}
+
+package "Processing Pipeline" #FFF5E5 {
+    class RequestChain {
+        - eventBus: NetworkEventBus
+        + processRequest(context)
+        + processResponse(context)
+        --
+        **Can also publish events:**
+        • During processing
+        • Handler-specific events
+    }
+    
+    class RequestHandler {
+        # eventBus: NetworkEventBus?
+        + handle(context)
+    }
+    
+    class TokenInjectionHandler
+    class RequestValidationHandler
+    class ErrorTransformationHandler
+    
+    RequestHandler <|-- TokenInjectionHandler
+    RequestHandler <|-- RequestValidationHandler
+    RequestHandler <|-- ErrorTransformationHandler
+}
+
+package "Event System" #E5FFE5 {
+    class NetworkEventBus {
+        - observers: List<NetworkObserver>
+        + attach(observer)
+        + detach(observer)
+        + notify(event)
+        + notifyRequest(event)
+        + notifySuccess(event)
+        + notifyError(event)
+    }
+    
+    interface NetworkObserver {
+        + onNetworkEvent(event)
+        + onRequest(event)
+        + onSuccess(event)
+        + onError(event)
+    }
+    
+    class ErrorAnalyticsObserver
+    class CrashReportingObserver
+    class RequestMetricsObserver
+    class NetworkStateObserver
+    class DebugLoggingObserver
+    
+    NetworkObserver <|.. ErrorAnalyticsObserver
+    NetworkObserver <|.. CrashReportingObserver
+    NetworkObserver <|.. RequestMetricsObserver
+    NetworkObserver <|.. NetworkStateObserver
+    NetworkObserver <|.. DebugLoggingObserver
+}
+
+package "Infrastructure" #E5E5FF {
+    class RemoteApi
+    class SecureStorage
+}
+
+' ============================================
+' INTEGRATION FLOW
+' ============================================
+
+NetworkFacade --> NetworkEventBus : publishes events
+RequestChain --> NetworkEventBus : can publish events
+RequestHandler --> NetworkEventBus : can publish events (optional)
+
+NetworkEventBus --> NetworkObserver : notifies all
+NetworkObserver <|.. ErrorAnalyticsObserver
+NetworkObserver <|.. CrashReportingObserver
+NetworkObserver <|.. NetworkStateObserver
+
+NetworkFacade --> RequestChain : initiates
+RequestChain --> RemoteApi : calls
+NetworkFacade --> SecureStorage : uses
+
+' ============================================
+' EVENT FLOW ANNOTATIONS
+' ============================================
+
+note right of NetworkFacade
+  **Event Publishing in Facade:**
+  
+  ```dart
+  // Before request
+  eventBus.notifyRequest(
+    NetworkRequestEvent(
+      url: url,
+      method: 'GET',
+      timestamp: DateTime.now()
+    )
+  );
+  
+  try {
+    // Process request...
+    // On success
+    eventBus.notifySuccess(
+      NetworkSuccessEvent(...)
+    );
+  } catch (e) {
+    // On error
+    eventBus.notifyError(
+      NetworkErrorEvent(...)
+    );
+  }
+  ```
+end note
+
+note right of NetworkEventBus
+  **Observer Registration:**
+  
+  ```dart
+  // At app startup
+  final eventBus = NetworkEventBus.getInstance();
+  
+  // Register observers
+  eventBus.attach(ErrorAnalyticsObserver());
+  eventBus.attach(CrashReportingObserver());
+  eventBus.attach(RequestMetricsObserver());
+  eventBus.attach(NetworkStateObserver());
+  eventBus.attach(DebugLoggingObserver());
+  
+  // Observers automatically receive events
+  // No code changes needed in Facade/Chain
+  ```
+end note
+
+note bottom of NetworkObserver
+  **Observer Implementation:**
+  
+  ```dart
+  class ErrorAnalyticsObserver 
+      implements NetworkObserver {
+    void onError(NetworkErrorEvent event) {
+      // Track error in analytics
+      analytics.trackError(event);
+    }
+    
+    void onRequest(NetworkRequestEvent event) {
+      // Optional: track request start
+    }
+    
+    void onSuccess(NetworkSuccessEvent event) {
+      // Optional: track success
+    }
+  }
+  ```
+end note
+
+' ============================================
+' INTEGRATION BENEFITS
+' ============================================
+
+rectangle "Integration Benefits" #E8F5E9 {
+    note as Benefits
+      **How Observer Enhances Facade + Chain:**
+      
+      **Without Observer:**
+      • Facade/Chain handle everything
+      • Analytics/logging mixed in
+      • Hard to add new features
+      • Tight coupling
+      
+      **With Observer:**
+      • Facade/Chain focus on core logic
+      • Observers handle side effects
+      • Easy to add analytics/logging
+      • Loose coupling
+      
+      **Zero Breaking Changes:**
+      • Facade interface unchanged
+      • Chain processing unchanged
+      • Observers added independently
+      • Existing code unaffected
+    end note
+}
+
+' ============================================
+' EVENT TIMELINE
+' ============================================
+
+rectangle "Event Timeline" #FFFACD {
+    note as Timeline
+      **Event Sequence:**
+      
+      1. **NetworkRequestEvent**
+         • Published: Before HTTP call
+         • Observers: All (optional handling)
+         • Use: Start timers, track requests
+      
+      2. **NetworkSuccessEvent**
+         • Published: After successful response
+         • Observers: Metrics, State, Analytics
+         • Use: Track success, update UI
+      
+      3. **NetworkErrorEvent**
+         • Published: On error/exception
+         • Observers: Analytics, Crash, State
+         • Use: Track errors, report crashes
+      
+      **Observers choose which events**
+      **to handle based on their needs.**
+    end note
+}
+
+@enduml
+

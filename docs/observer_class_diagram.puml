@@ -1,0 +1,282 @@
+@startuml Observer Pattern - Class Structure
+
+!theme plain
+skinparam classAttributeIconSize 0
+skinparam backgroundColor #FFFFFF
+skinparam class {
+    BackgroundColor #E8F4F8
+    BorderColor #2E86AB
+    ArrowColor #2E86AB
+}
+
+title Observer Pattern - Class Structure\nNetwork Event Notification System
+
+' ============================================
+' SUBJECT (Event Publisher)
+' ============================================
+class NetworkEventBus {
+    - observers: List<NetworkObserver>
+    - _instance: NetworkEventBus?
+    + {static} getInstance(): NetworkEventBus
+    + attach(observer: NetworkObserver): void
+    + detach(observer: NetworkObserver): void
+    + notify(event: NetworkEvent): void
+    + notifyError(error: NetworkErrorEvent): void
+    + notifySuccess(success: NetworkSuccessEvent): void
+    + notifyRequest(request: NetworkRequestEvent): void
+    --
+    **Singleton Pattern:**
+    • Single instance for global access
+    • Manages observer subscriptions
+    • Broadcasts events to all observers
+}
+
+' ============================================
+' OBSERVER INTERFACE
+' ============================================
+interface NetworkObserver {
+    + onNetworkEvent(event: NetworkEvent): void
+    + onError(error: NetworkErrorEvent): void
+    + onSuccess(success: NetworkSuccessEvent): void
+    + onRequest(request: NetworkRequestEvent): void
+    --
+    **Observer Contract:**
+    • All observers must implement
+    • Receives network events
+    • Handles events independently
+}
+
+' ============================================
+' CONCRETE OBSERVERS
+' ============================================
+class ErrorAnalyticsObserver {
+    - analyticsService: AnalyticsService
+    + onError(error: NetworkErrorEvent): void
+    + onNetworkEvent(event: NetworkEvent): void
+    --
+    **Single Responsibility:**
+    • Tracks errors for analytics
+    • Sends error data to analytics service
+    • No UI impact
+}
+
+class CrashReportingObserver {
+    - crashReporter: CrashReporter
+    + onError(error: NetworkErrorEvent): void
+    + onNetworkEvent(event: NetworkEvent): void
+    --
+    **Single Responsibility:**
+    • Reports critical errors
+    • Sends crash reports
+    • Handles error categorization
+}
+
+class RequestMetricsObserver {
+    - metricsCollector: MetricsCollector
+    + onRequest(request: NetworkRequestEvent): void
+    + onSuccess(success: NetworkSuccessEvent): void
+    + onNetworkEvent(event: NetworkEvent): void
+    --
+    **Single Responsibility:**
+    • Collects request metrics
+    • Tracks response times
+    • Monitors API performance
+}
+
+class NetworkStateObserver {
+    - stateNotifier: StateNotifier
+    + onRequest(request: NetworkRequestEvent): void
+    + onSuccess(success: NetworkSuccessEvent): void
+    + onError(error: NetworkErrorEvent): void
+    + onNetworkEvent(event: NetworkEvent): void
+    --
+    **Single Responsibility:**
+    • Updates network state
+    • Notifies UI of state changes
+    • Manages loading indicators
+}
+
+class DebugLoggingObserver {
+    - logger: Logger
+    - enabled: bool
+    + onRequest(request: NetworkRequestEvent): void
+    + onSuccess(success: NetworkSuccessEvent): void
+    + onError(error: NetworkErrorEvent): void
+    + onNetworkEvent(event: NetworkEvent): void
+    --
+    **Single Responsibility:**
+    • Logs network events for debugging
+    • Can be enabled/disabled
+    • Development tool only
+}
+
+' ============================================
+' EVENT TYPES (Value Objects)
+' ============================================
+class NetworkEvent {
+    - eventType: EventType
+    - timestamp: DateTime
+    - url: String
+    - method: String
+    + getEventType(): EventType
+    + getTimestamp(): DateTime
+    + getUrl(): String
+    + getMethod(): String
+    --
+    **Base Event:**
+    • Common event properties
+    • Immutable value object
+}
+
+class NetworkRequestEvent extends NetworkEvent {
+    - headers: Map<String, String>?
+    - body: dynamic
+    - requestId: String
+    + getHeaders(): Map<String, String>?
+    + getBody(): dynamic
+    + getRequestId(): String
+    --
+    **Request Event:**
+    • Fired before HTTP call
+    • Contains request details
+}
+
+class NetworkSuccessEvent extends NetworkEvent {
+    - response: Map<String, dynamic>
+    - statusCode: int
+    - responseTime: Duration
+    - requestId: String
+    + getResponse(): Map<String, dynamic>
+    + getStatusCode(): int
+    + getResponseTime(): Duration
+    + getRequestId(): String
+    --
+    **Success Event:**
+    • Fired on successful response
+    • Contains response data
+    • Includes timing metrics
+}
+
+class NetworkErrorEvent extends NetworkEvent {
+    - error: Exception
+    - errorType: ErrorType
+    - statusCode: int?
+    - requestId: String
+    - errorMessage: String
+    + getError(): Exception
+    + getErrorType(): ErrorType
+    + getStatusCode(): int?
+    + getRequestId(): String
+    + getErrorMessage(): String
+    --
+    **Error Event:**
+    • Fired on error/exception
+    • Contains error details
+    • Categorized error type
+}
+
+enum EventType {
+    REQUEST
+    SUCCESS
+    ERROR
+}
+
+enum ErrorType {
+    NETWORK_ERROR
+    SERVER_ERROR
+    CLIENT_ERROR
+    TIMEOUT_ERROR
+    AUTHENTICATION_ERROR
+}
+
+' ============================================
+' INTEGRATION WITH EXISTING PATTERNS
+' ============================================
+class NetworkFacade {
+    - eventBus: NetworkEventBus
+    + post(...): Future<Map<String, dynamic>>
+    + get(...): Future<Map<String, dynamic>>
+    --
+    **Integration:**
+    • Publishes events to EventBus
+    • Notifies observers of network activity
+    • Maintains existing interface
+}
+
+class RequestChain {
+    - eventBus: NetworkEventBus
+    + processRequest(context): Future<RequestContext>
+    --
+    **Integration:**
+    • Publishes request events
+    • Notifies observers during processing
+    • Chain handlers can publish events
+}
+
+' ============================================
+' RELATIONSHIPS
+' ============================================
+NetworkEventBus --> NetworkObserver : notifies\n(one-to-many)
+NetworkObserver <|.. ErrorAnalyticsObserver : implements
+NetworkObserver <|.. CrashReportingObserver : implements
+NetworkObserver <|.. RequestMetricsObserver : implements
+NetworkObserver <|.. NetworkStateObserver : implements
+NetworkObserver <|.. DebugLoggingObserver : implements
+
+NetworkEventBus --> NetworkEvent : publishes
+NetworkEvent <|-- NetworkRequestEvent : extends
+NetworkEvent <|-- NetworkSuccessEvent : extends
+NetworkEvent <|-- NetworkErrorEvent : extends
+
+NetworkEvent --> EventType : uses
+NetworkErrorEvent --> ErrorType : uses
+
+NetworkFacade --> NetworkEventBus : uses\n(publishes events)
+RequestChain --> NetworkEventBus : uses\n(publishes events)
+
+ErrorAnalyticsObserver --> AnalyticsService : uses
+CrashReportingObserver --> CrashReporter : uses
+RequestMetricsObserver --> MetricsCollector : uses
+NetworkStateObserver --> StateNotifier : uses
+DebugLoggingObserver --> Logger : uses
+
+' ============================================
+' NOTES
+' ============================================
+note right of NetworkEventBus
+  **Observer Pattern Benefits:**
+  
+  • Loose coupling
+  • Multiple observers
+  • Easy to add/remove
+  • No changes to existing code
+  • Independent event handling
+end note
+
+note right of NetworkObserver
+  **Observer Contract:**
+  
+  All observers implement:
+  • onNetworkEvent() - generic handler
+  • onError() - error-specific
+  • onSuccess() - success-specific
+  • onRequest() - request-specific
+  
+  Observers choose which events
+  to handle based on their needs.
+end note
+
+note bottom of NetworkFacade
+  **Integration Point:**
+  
+  Facade publishes events:
+  • Before request (NetworkRequestEvent)
+  • On success (NetworkSuccessEvent)
+  • On error (NetworkErrorEvent)
+  
+  Observers react independently
+  without modifying Facade code.
+end note
+
+@enduml
+

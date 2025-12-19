@@ -1,0 +1,79 @@
+@startuml Facade Pattern - Request Flow Sequence
+
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+
+title Facade Pattern - Request Flow Sequence Diagram\n(Example: getCustomerAccount)
+
+actor "AuthApi" as API
+participant "NetworkFacade" as Facade
+participant "SecureStorage" as Storage
+participant "Headers" as Headers
+participant "RemoteApi" as Remote
+participant "Backend\nServer" as Backend
+
+== Request Flow ==
+
+API -> Facade: get(url, requiresAuth: true)
+activate Facade
+
+Facade -> Facade: _buildHeaders(headers: null, requiresAuth: true)
+activate Facade
+
+Facade -> Storage: getToken()
+activate Storage
+Storage --> Facade: token (String)
+deactivate Storage
+
+Facade -> Headers: headersWithAuthContent(token)
+activate Headers
+Headers --> Facade: Map<String, String> headers
+deactivate Headers
+
+deactivate Facade
+
+Facade -> Remote: get(url, headers: authHeaders)
+activate Remote
+
+Remote -> Backend: HTTP GET request\n(with Authorization header)
+activate Backend
+Backend --> Remote: HTTP Response\n(Map<String, dynamic>)
+deactivate Backend
+
+Remote --> Facade: Response object
+deactivate Remote
+
+Facade -> Facade: Extract response.data
+Facade --> API: Map<String, dynamic>
+deactivate Facade
+
+== Benefits Highlighted ==
+
+note over API, Facade
+  **Simplified Interface:**
+  • API class doesn't need to:
+    - Retrieve token manually
+    - Construct headers manually
+    - Handle Response object
+  • Just calls Facade method
+  • Gets data directly
+end note
+
+note over Facade, Storage
+  **Automatic Token Management:**
+  • Facade handles token retrieval
+  • Always uses latest token
+  • No token passing needed
+end note
+
+note over Facade, Headers
+  **Automatic Header Construction:**
+  • Facade builds appropriate headers
+  • Handles auth + content-type
+  • Maintains consistency
+end note
+
+@enduml
+

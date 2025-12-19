@@ -1,0 +1,209 @@
+@startuml Observer Pattern - Event Flow Sequence
+
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+skinparam ParticipantPadding 20
+
+title Observer Pattern - Event Notification Flow\n(Example: Network Request with Multiple Observers)
+
+actor "API Class" as API
+participant "NetworkFacade" as Facade
+participant "NetworkEventBus" as EventBus
+participant "RequestChain" as Chain
+participant "RemoteApi" as Remote
+participant "ErrorAnalytics\nObserver" as Analytics
+participant "CrashReporting\nObserver" as CrashReporter
+participant "RequestMetrics\nObserver" as Metrics
+participant "NetworkState\nObserver" as StateObserver
+participant "DebugLogging\nObserver" as DebugLogger
+participant "Backend\nServer" as Backend
+
+== Phase 1: Request Initiation ==
+
+API -> Facade: get(url, requiresAuth: true)
+activate Facade
+
+Facade -> EventBus: notifyRequest(NetworkRequestEvent)
+activate EventBus
+
+EventBus -> Analytics: onRequest(event)
+activate Analytics
+Analytics -> Analytics: Track request start
+Analytics -> Analytics: Record request timestamp
+deactivate Analytics
+
+EventBus -> Metrics: onRequest(event)
+activate Metrics
+Metrics -> Metrics: Start performance timer
+Metrics -> Metrics: Record request metadata
+deactivate Metrics
+
+EventBus -> StateObserver: onRequest(event)
+activate StateObserver
+StateObserver -> StateObserver: Update state: LOADING
+StateObserver -> StateObserver: Notify UI components
+deactivate StateObserver
+
+EventBus -> DebugLogger: onRequest(event)
+activate DebugLogger
+DebugLogger -> DebugLogger: Log: "Request started: GET /api/..."
+deactivate DebugLogger
+
+deactivate EventBus
+
+== Phase 2: Request Processing ==
+
+Facade -> Chain: processRequest(context)
+activate Chain
+
+Chain -> Remote: get(url, headers)
+activate Remote
+
+Remote -> Backend: HTTP GET request
+activate Backend
+
+alt Success Response
+    Backend --> Remote: HTTP 200 OK\nResponse data
+    deactivate Backend
+    
+    Remote --> Chain: Response object
+    deactivate Remote
+    
+    Chain --> Facade: RequestContext (success)
+    deactivate Chain
+    
+    Facade -> EventBus: notifySuccess(NetworkSuccessEvent)
+    activate EventBus
+    
+    EventBus -> Analytics: onSuccess(event)
+    activate Analytics
+    Analytics -> Analytics: Track success rate
+    Analytics -> Analytics: Record response time
+    deactivate Analytics
+    
+    EventBus -> Metrics: onSuccess(event)
+    activate Metrics
+    Metrics -> Metrics: Calculate response time
+    Metrics -> Metrics: Update performance metrics
+    Metrics -> Metrics: Record success
+    deactivate Metrics
+    
+    EventBus -> StateObserver: onSuccess(event)
+    activate StateObserver
+    StateObserver -> StateObserver: Update state: SUCCESS
+    StateObserver -> StateObserver: Notify UI: hide loading
+    deactivate StateObserver
+    
+    EventBus -> DebugLogger: onSuccess(event)
+    activate DebugLogger
+    DebugLogger -> DebugLogger: Log: "Request succeeded: 200ms"
+    deactivate DebugLogger
+    
+    deactivate EventBus
+    
+    Facade -> Facade: Extract response.data
+    Facade --> API: Map<String, dynamic>
+    deactivate Facade
+
+else Error Response
+    Backend --> Remote: HTTP 500 Error
+    deactivate Backend
+    
+    Remote --> Chain: DioException
+    deactivate Remote
+    
+    Chain --> Facade: RequestContext (error)
+    deactivate Chain
+    
+    Facade -> EventBus: notifyError(NetworkErrorEvent)
+    activate EventBus
+    
+    EventBus -> Analytics: onError(event)
+    activate Analytics
+    Analytics -> Analytics: Track error type
+    Analytics -> Analytics: Record error rate
+    Analytics -> Analytics: Send to analytics service
+    deactivate Analytics
+    
+    EventBus -> CrashReporter: onError(event)
+    activate CrashReporter
+    CrashReporter -> CrashReporter: Check if critical error
+    alt Critical Error
+        CrashReporter -> CrashReporter: Send crash report
+        CrashReporter -> CrashReporter: Categorize error
+    end
+    deactivate CrashReporter
+    
+    EventBus -> Metrics: onError(event)
+    activate Metrics
+    Metrics -> Metrics: Record error in metrics
+    Metrics -> Metrics: Update failure rate
+    deactivate Metrics
+    
+    EventBus -> StateObserver: onError(event)
+    activate StateObserver
+    StateObserver -> StateObserver: Update state: ERROR
+    StateObserver -> StateObserver: Notify UI: show error
+    deactivate StateObserver
+    
+    EventBus -> DebugLogger: onError(event)
+    activate DebugLogger
+    DebugLogger -> DebugLogger: Log: "Request failed: 500"
+    DebugLogger -> DebugLogger: Log error stack trace
+    deactivate DebugLogger
+    
+    deactivate EventBus
+    
+    Facade -> Facade: Rethrow error (maintains compatibility)
+    Facade --> API: Exception (rethrown)
+    deactivate Facade
+end
+
+== Observer Registration (Setup Phase) ==
+
+note over EventBus, DebugLogger
+  **Observer Registration:**
+  
+  Observers are registered at app startup:
+  
+  ```dart
+  final eventBus = NetworkEventBus.getInstance();
+  eventBus.attach(ErrorAnalyticsObserver());
+  eventBus.attach(CrashReportingObserver());
+  eventBus.attach(RequestMetricsObserver());
+  eventBus.attach(NetworkStateObserver());
+  eventBus.attach(DebugLoggingObserver());
+  ```
+  
+  Observers can be added/removed dynamically
+  without modifying existing code.
+end note
+
+== Benefits Highlighted ==
+
+note over Facade, EventBus
+  **Loose Coupling:**
+  
+  • Facade doesn't know about observers
+  • Observers don't know about each other
+  • Easy to add new observers
+  • No changes to existing code
+end note
+
+note over Analytics, DebugLogger
+  **Independent Processing:**
+  
+  Each observer handles events
+  independently:
+  • Analytics tracks metrics
+  • Crash reporter handles errors
+  • State observer updates UI
+  • Debug logger logs events
+  
+  No interference between observers.
+end note
+
+@enduml
+

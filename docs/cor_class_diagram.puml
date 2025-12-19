@@ -1,0 +1,231 @@
+@startuml Chain of Responsibility - Class Structure
+
+!theme plain
+skinparam classAttributeIconSize 0
+skinparam backgroundColor #FFFFFF
+skinparam class {
+    BackgroundColor #E8F4F8
+    BorderColor #2E86AB
+    ArrowColor #2E86AB
+}
+
+title Chain of Responsibility Pattern - Class Structure\nNetwork Layer Request Processing Chain
+
+' ============================================
+' FACADE (Client/Initiator)
+' ============================================
+class NetworkFacade {
+    - {static} _buildHeaders(...): Future<Map<String, String>>
+    - {static} _requestChain: RequestChain
+    + {static} post(url, body, headers, requiresAuth): Future<Map<String, dynamic>>
+    + {static} get(url, headers, requiresAuth): Future<Map<String, dynamic>>
+    + {static} put(url, body, headers, requiresAuth): Future<Map<String, dynamic>>
+    + {static} delete(url, headers, requiresAuth): Future<Map<String, dynamic>>
+    --
+    **Responsibilities:**
+    • Entry point for API calls
+    • Initiates request chain
+    • Handles token/headers (existing logic)
+    • Delegates to chain for processing
+}
+
+' ============================================
+' CHAIN ORCHESTRATOR
+' ============================================
+class RequestChain {
+    - handlers: List<RequestHandler>
+    + addHandler(handler: RequestHandler): void
+    + processRequest(context: RequestContext): Future<RequestContext>
+    + processResponse(context: RequestContext): Future<RequestContext>
+    --
+    **Responsibilities:**
+    • Manages handler execution order
+    • Passes context through chain
+    • Handles chain traversal
+}
+
+' ============================================
+' ABSTRACT HANDLER (Base)
+' ============================================
+abstract class RequestHandler {
+    # nextHandler: RequestHandler?
+    + setNext(handler: RequestHandler): RequestHandler
+    + handle(context: RequestContext): Future<RequestContext>
+    # {abstract} doHandle(context: RequestContext): Future<RequestContext>
+    # passToNext(context: RequestContext): Future<RequestContext>
+    --
+    **Template Method Pattern:**
+    • Defines chain structure
+    • Handles next handler delegation
+    • Subclasses implement doHandle()
+}
+
+' ============================================
+' CONCRETE HANDLERS (Single Responsibility)
+' ============================================
+class TokenInjectionHandler {
+    - secureStorage: SecureStorage
+    + doHandle(context: RequestContext): Future<RequestContext>
+    --
+    **Single Responsibility:**
+    • Injects authentication token
+    • Retrieves token from SecureStorage
+    • Adds token to request context
+}
+
+class RequestValidationHandler {
+    + doHandle(context: RequestContext): Future<RequestContext>
+    --
+    **Single Responsibility:**
+    • Validates request structure
+    • Checks required fields
+    • Ensures URL format is correct
+    • Internal validation only
+}
+
+class ErrorTransformationHandler {
+    + doHandle(context: RequestContext): Future<RequestContext>
+    --
+    **Single Responsibility:**
+    • Transforms DioException → NetworkException
+    • Wraps errors in consistent format
+    • Handles error context
+}
+
+class ResponseLoggingHandler {
+    - enabled: bool
+    + doHandle(context: RequestContext): Future<RequestContext>
+    --
+    **Single Responsibility:**
+    • Logs request/response details
+    • Optional logging (can be disabled)
+    • Debug information only
+}
+
+class HeaderConstructionHandler {
+    + doHandle(context: RequestContext): Future<RequestContext>
+    --
+    **Single Responsibility:**
+    • Constructs final headers
+    • Merges auth + content-type headers
+    • Prepares headers for RemoteApi
+}
+
+' ============================================
+' REQUEST CONTEXT (Data Transfer Object)
+' ============================================
+class RequestContext {
+    - url: String
+    - method: String
+    - body: dynamic
+    - headers: Map<String, String>?
+    - token: String?
+    - requiresAuth: bool
+    - response: Response?
+    - error: Exception?
+    + getUrl(): String
+    + getMethod(): String
+    + getBody(): dynamic
+    + getHeaders(): Map<String, String>?
+    + setHeaders(headers: Map<String, String>): void
+    + getToken(): String?
+    + setToken(token: String): void
+    + getResponse(): Response?
+    + setResponse(response: Response): void
+    + getError(): Exception?
+    + setError(error: Exception): void
+    --
+    **Immutable Context:**
+    • Carries request data through chain
+    • Modified by handlers
+    • Contains final response
+}
+
+' ============================================
+' UNDERLYING SYSTEM
+' ============================================
+class RemoteApi {
+    + {static} post(url, body, headers): Future<Response>
+    + {static} get(url, headers): Future<Response>
+    + {static} put(url, body, headers): Future<Response>
+    + {static} delete(url, headers): Future<Response>
+    --
+    **Low-level HTTP client:**
+    • Receives processed request
+    • Makes actual HTTP call
+    • Returns Response object
+}
+
+' ============================================
+' DEPENDENCIES
+' ============================================
+class SecureStorage {
+    + {static} getToken(): Future<String>
+}
+
+' ============================================
+' RELATIONSHIPS
+' ============================================
+NetworkFacade --> RequestChain : creates\ninitiates
+NetworkFacade --> RequestContext : creates
+RequestChain --> RequestHandler : manages\ncollection
+
+RequestHandler <|-- TokenInjectionHandler : extends
+RequestHandler <|-- RequestValidationHandler : extends
+RequestHandler <|-- ErrorTransformationHandler : extends
+RequestHandler <|-- ResponseLoggingHandler : extends
+RequestHandler <|-- HeaderConstructionHandler : extends
+
+RequestHandler --> RequestHandler : nextHandler\n(chain link)
+RequestHandler --> RequestContext : processes
+
+TokenInjectionHandler --> SecureStorage : uses
+RequestChain --> RemoteApi : calls after\nchain processing
+
+' ============================================
+' NOTES
+' ============================================
+note right of RequestHandler
+  **Chain Pattern:**
+  
+  Each handler:
+  1. Processes context
+  2. Calls doHandle()
+  3. Passes to next handler
+  4. Returns modified context
+  
+  **Flexible:**
+  • Add/remove handlers easily
+  • Change order dynamically
+  • Test handlers independently
+end note
+
+note right of RequestChain
+  **Chain Setup:**
+  
+  Typical order:
+  1. TokenInjectionHandler
+  2. RequestValidationHandler
+  3. HeaderConstructionHandler
+  4. (Request sent to RemoteApi)
+  5. ErrorTransformationHandler
+  6. ResponseLoggingHandler
+end note
+
+note bottom of NetworkFacade
+  **Facade + Chain Integration:**
+  
+  Facade responsibilities:
+  • Token retrieval (existing)
+  • Header building (existing)
+  • Chain initiation (new)
+  • Response extraction (existing)
+  
+  Chain responsibilities:
+  • Request preprocessing
+  • Error transformation
+  • Response post-processing
+end note
+
+@enduml
+

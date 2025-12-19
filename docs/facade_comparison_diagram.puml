@@ -1,0 +1,114 @@
+@startuml Facade Pattern - Before vs After Comparison
+
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam classAttributeIconSize 0
+
+title Facade Pattern - Before vs After Implementation
+
+package "BEFORE: Direct RemoteApi Usage" #FFE5E5 {
+    class AuthApi_Before {
+        + login(data)
+        + getCustomerAccount(accountNumber, token)
+        --
+        **Implementation:**
+        1. Get token from SecureStorage
+        2. Construct headers manually
+        3. Call RemoteApi.get()
+        4. Extract response.data
+        5. Return Map
+    }
+    
+    class RemoteApi_Before {
+        + get(url, headers)
+        + post(url, body, headers)
+    }
+    
+    class SecureStorage_Before {
+        + getToken()
+    }
+    
+    AuthApi_Before --> RemoteApi_Before : direct call
+    AuthApi_Before --> SecureStorage_Before : manual token retrieval
+}
+
+package "AFTER: Facade Pattern" #E5F5E5 {
+    class AuthApi_After {
+        + login(data)
+        + getCustomerAccount(accountNumber, token)
+        --
+        **Implementation:**
+        1. Call NetworkFacade.get()
+        2. Return Map directly
+        --
+        **Benefits:**
+        • 70% less code
+        • No token management
+        • No header construction
+        • Cleaner interface
+    }
+    
+    class NetworkFacade {
+        + get(url, requiresAuth)
+        + post(url, body, requiresAuth)
+        --
+        **Handles:**
+        • Token retrieval
+        • Header construction
+        • Response extraction
+    }
+    
+    class RemoteApi_After {
+        + get(url, headers)
+        + post(url, body, headers)
+    }
+    
+    class SecureStorage_After {
+        + getToken()
+    }
+    
+    AuthApi_After --> NetworkFacade : simplified call
+    NetworkFacade --> RemoteApi_After : wraps
+    NetworkFacade --> SecureStorage_After : automatic
+}
+
+note right of AuthApi_Before
+  **Code Example (Before):**
+  
+  ```dart
+  Future<Map<String, dynamic>> 
+  getCustomerAccount({
+    required String accountNumber,
+    required String token,
+  }) async {
+    final token = await SecureStorage.getToken();
+    final response = await RemoteApi.get(
+      url,
+      headers: headersWithAuthContent(token),
+    );
+    return response.data;
+  }
+  ```
+end note
+
+note right of AuthApi_After
+  **Code Example (After):**
+  
+  ```dart
+  Future<Map<String, dynamic>> 
+  getCustomerAccount({
+    required String accountNumber,
+    required String token, // kept for compatibility
+  }) async {
+    return await NetworkFacade.get(url);
+  }
+  ```
+  
+  **Reduction:**
+  • 7 lines → 1 line
+  • No token handling
+  • No header construction
+end note
+
+@enduml
+
