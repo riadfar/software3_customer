@@ -1,0 +1,48 @@
+@startuml
+scale 1600*1600
+top to bottom direction
+hide empty members
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+
+package "Report Adapter" {
+  interface ReportAdapter {
+    +adapt(data : Array) : Array
+  }
+
+  class JsonSummaryReportAdapter {
+    +adapt(data : Array) : Array
+  }
+
+  JsonSummaryReportAdapter ..|> ReportAdapter
+
+  interface ReportComponent {
+    +getData() : Array
+  }
+
+  class ReportGroup {
+    +add(component : ReportComponent) : void
+    +getData() : Array
+  }
+
+  class SummaryReportService {
+    +generate(params : Array) : Array
+  }
+
+  SummaryReportService --> ReportGroup : builds composite
+  SummaryReportService --> JsonSummaryReportAdapter : adapts to JSON
+  ReportGroup o-- ReportComponent : components
+}
+
+package "External Deposit Adapter" {
+  interface ExternalDepositInterface {
+    +processDeposit(amount : float, reference : String) : Array
+  }
+
+  class ExternalDepositAdapter {
+    +processDeposit(amount : float, reference : String) : Array
+  }
+
+  ExternalDepositAdapter ..|> ExternalDepositInterface
+}
+@enduml

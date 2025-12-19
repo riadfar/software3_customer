@@ -1,0 +1,403 @@
+@startuml
+scale 1800*1800
+left to right direction
+hide empty members
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+skinparam packageTitleFontSize 14
+skinparam ArrowColor #555
+skinparam ClassBorderColor #333
+skinparam ClassBackgroundColor #f9f9f9
+skinparam PackageBorderColor #333
+skinparam PackageBackgroundColor #f3f3f3
+
+rectangle "Column L" {
+  package "Composite: Accounts" {
+    interface AccountComponent {
+      +getBalance() : float
+      +debit(amount: float) : void
+      +credit(amount: float) : void
+    }
+    class MainAccountComposite {
+      +__construct(account: BankAccount)
+      +add(component: AccountComponent) : void
+      +getBalance() : float
+      +debit(amount: float) : void
+      +credit(amount: float) : void
+      +getModel() : BankAccount
+    }
+    class SubAccountLeaf {
+      +__construct(sub: SubAccount)
+      +getBalance() : float
+      +debit(amount: float) : void
+      +credit(amount: float) : void
+      +getModel() : SubAccount
+    }
+
+    MainAccountComposite ..|> AccountComponent
+    SubAccountLeaf ..|> AccountComponent
+    MainAccountComposite o-- AccountComponent : subAccounts
+  }
+
+  package "Strategy: Transactions" {
+    interface TransactionStrategy {
+      +execute(account: BankAccount, amount: float, subAccount: SubAccount) : float
+    }
+    class DepositStrategy {
+      +execute(account: BankAccount, amount: float, subAccount: SubAccount) : float
+    }
+    class WithdrawStrategy {
+      +execute(account: BankAccount, amount: float, subAccount: SubAccount) : float
+    }
+    class TransactionContext {
+      +setStrategy(strategy: TransactionStrategy) : void
+      +execute(account: BankAccount, amount: float, subAccount: SubAccount) : float
+    }
+
+    DepositStrategy ..|> TransactionStrategy
+    WithdrawStrategy ..|> TransactionStrategy
+    TransactionContext --> TransactionStrategy : strategy
+    TransactionStrategy ..> BankAccount
+    TransactionStrategy ..> SubAccount
+  }
+
+  package "Decorator: Transactions" {
+    abstract class TransactionDecorator {
+      +__construct(strategy: TransactionStrategy)
+    }
+    TransactionDecorator ..|> TransactionStrategy
+
+    class LoggingTransactionDecorator {
+      +execute(account: BankAccount, amount: float, subAccount: SubAccount) : float
+    }
+
+    LoggingTransactionDecorator --|> TransactionDecorator
+    LoggingTransactionDecorator ..> TransactionStrategy : wraps
+    LoggingTransactionDecorator ..> Transaction : creates
+  }
+}
+
+rectangle "Column R" {
+  package "Strategy: Transfers" {
+    interface TransferStrategy {
+      +execute(from: AccountComponent, to: AccountComponent, amount: float, fromSub: AccountComponent, toSub: AccountComponent) : any
+    }
+    class NormalTransfer {
+      +execute(from: AccountComponent, to: AccountComponent, amount: float, fromSub: AccountComponent, toSub: AccountComponent) : any
+    }
+    class LargeTransfer {
+      +execute(from: AccountComponent, to: AccountComponent, amount: float, fromSub: AccountComponent, toSub: AccountComponent) : any
+    }
+
+    NormalTransfer ..|> TransferStrategy
+    LargeTransfer ..|> TransferStrategy
+    TransferStrategy ..> AccountComponent
+    NormalTransfer ..> Transaction : creates
+    LargeTransfer ..> LargeTransactionRequest : creates
+  }
+
+  package "Decorator: Transfers" {
+    interface TransactionInterface {
+      +execute() : any
+    }
+    class BaseTransaction {
+      +__construct(strategy: TransferStrategy, from: AccountComponent, to: AccountComponent, amount: float, fromSub: AccountComponent, toSub: AccountComponent)
+      +execute() : any
+    }
+    abstract class TransactionDecorator1 {
+      +__construct(tx: TransactionInterface)
+      +execute() : any
+    }
+    class LoggingDecorator {
+      +execute() : any
+    }
+
+    BaseTransaction ..|> TransactionInterface
+    TransactionDecorator1 ..|> TransactionInterface
+    LoggingDecorator --|> TransactionDecorator1
+    BaseTransaction --> TransferStrategy : uses
+    LoggingDecorator --> TransactionInterface : wraps
+  }
+
+  package "Chain: Transfer decision" {
+    abstract class TransferHandler {
+      +setNext(handler: TransferHandler) : TransferHandler
+      +handle(request: Array) : any
+    }
+    class BalanceCheckHandler {
+      +handle(request: Array) : any
+    }
+    class LargeAmountHandler {
+      +handle(request: Array) : any
+    }
+
+    BalanceCheckHandler --|> TransferHandler
+    LargeAmountHandler --|> TransferHandler
+    TransferHandler o--> TransferHandler : next
+  }
+
+  package "Chain: Large tx validation" {
+    abstract class TransactionHandler {
+      +setNext(handler: TransactionHandler) : TransactionHandler
+      +handle(request: LargeTransactionRequest) : void
+    }
+    class FrozenAccountHandler {
+      +handle(request: LargeTransactionRequest) : void
+    }
+    class BalanceHandler {
+      +handle(request: LargeTransactionRequest) : void
+    }
+
+    FrozenAccountHandler --|> TransactionHandler
+    BalanceHandler --|> TransactionHandler
+    TransactionHandler o--> TransactionHandler : next
+  }
+
+  package "Chain: Freeze/unfreeze" {
+    class FreezeHandler {
+      +setNext(handler: FreezeHandler) : FreezeHandler
+      +handle(req: FreezeRequest, action: String, reason: String) : any
+    }
+    class AccountStatusHandler {
+      +handle(req: FreezeRequest, action: String, reason: String) : any
+    }
+    class FreezeActionHandler {
+      +handle(req: FreezeRequest, action: String, reason: String) : any
+    }
+
+    AccountStatusHandler --|> FreezeHandler
+    FreezeActionHandler --|> FreezeHandler
+    FreezeHandler o--> FreezeHandler : next
+  }
+
+  package "Adapter: Reports" {
+    interface ReportAdapter {
+      +adapt(data: Array) : Array
+    }
+    class JsonSummaryReportAdapter {
+      +adapt(data: Array) : Array
+    }
+    class ReportGroup {
+      +add(component: ReportComponent) : void
+      +getData() : Array
+    }
+    interface ReportComponent {
+      +getData() : Array
+    }
+    class SystemOverviewComponent {
+      +getData() : Array
+    }
+    class PendingRequestsComponent {
+      +getData() : Array
+    }
+    class TransactionsSummaryComponent {
+      +__construct(from: Carbon, to: Carbon)
+      +getData() : Array
+    }
+    class RecentTransactionsComponent {
+      +getData() : Array
+    }
+    class SummaryReportService {
+      +generate(params: Array) : Array
+    }
+
+    JsonSummaryReportAdapter ..|> ReportAdapter
+    ReportGroup ..|> ReportComponent
+    SystemOverviewComponent ..|> ReportComponent
+    PendingRequestsComponent ..|> ReportComponent
+    TransactionsSummaryComponent ..|> ReportComponent
+    RecentTransactionsComponent ..|> ReportComponent
+    ReportGroup o-- ReportComponent : components
+    SummaryReportService --> ReportGroup : builds
+    SummaryReportService --> JsonSummaryReportAdapter : adapts
+  }
+
+  package "Adapter: External Deposit" {
+    interface ExternalDepositInterface {
+      +processDeposit(amount: float, reference: String) : Array
+    }
+    class ExternalDepositAdapter {
+      +processDeposit(amount: float, reference: String) : Array
+    }
+
+    ExternalDepositAdapter ..|> ExternalDepositInterface
+  }
+
+  package "Strategy + Decorator: Large tx handling" {
+    interface LargeTransactionStrategy {
+      +handle(request: LargeTransactionRequest) : void
+    }
+    class ApproveLargeTransaction {
+      +handle(request: LargeTransactionRequest) : void
+    }
+    class RejectLargeTransaction {
+      +handle(request: LargeTransactionRequest) : void
+    }
+    class LargeTransactionLoggerDecorator {
+      +__construct(strategy: LargeTransactionStrategy)
+      +handle(request: LargeTransactionRequest) : void
+    }
+
+    ApproveLargeTransaction ..|> LargeTransactionStrategy
+    RejectLargeTransaction ..|> LargeTransactionStrategy
+    LargeTransactionLoggerDecorator ..|> LargeTransactionStrategy
+    LargeTransactionLoggerDecorator --> LargeTransactionStrategy : wraps
+    ApproveLargeTransaction ..> Transaction : creates
+  }
+
+  package "Controllers" {
+    class CustomerController {
+      +getSubAccount() : JsonResponse
+      +transferToAnotherAccount(req: TransferRequest) : JsonResponse
+    }
+    class TellerController {
+      +getCustomerAccount(req: GetCustomerAccountRequest) : JsonResponse
+      +getCustomerRequests() : JsonResponse
+      +createFreezeRequest(req: CreateFreezeRequest) : JsonResponse
+      +handleFreezeRequest(req: HandleFreezeRequest, id: int) : JsonResponse
+      +cashDeposit(req: CanDepositRequest) : JsonResponse
+      +cashWithdrawal(req: CashWithDrawaleRequest) : JsonResponse
+      +createCustomerAccount(req: CreateCustomerAccountRequest) : JsonResponse
+      +performTransaction(req: Request, type: String) : JsonResponse
+    }
+    class AdminController {
+      +createTeller(req: CreateTellerRequest) : JsonResponse
+      +viewLogs(req: Request) : JsonResponse
+      +handleLargeTransaction(req: HandleLargeTransactionRequest, id: int) : JsonResponse
+      +writeSummaryReport(req: SummaryReportRequest) : JsonResponse
+      +handleAccountClosure(req: HandleAccountClosureRequest, id: int) : JsonResponse
+    }
+
+    CustomerController ..> MainAccountComposite
+    CustomerController ..> SubAccountLeaf
+    CustomerController ..> BalanceCheckHandler
+    CustomerController ..> LargeAmountHandler
+    CustomerController ..> BaseTransaction
+    CustomerController ..> LoggingDecorator
+    CustomerController ..> NormalTransfer
+    CustomerController ..> LargeTransfer
+
+    TellerController ..> TransactionContext
+    TellerController ..> DepositStrategy
+    TellerController ..> WithdrawStrategy
+    TellerController ..> LoggingTransactionDecorator
+    TellerController ..> AccountStatusHandler
+    TellerController ..> FreezeActionHandler
+
+    AdminController ..> SummaryReportService
+    AdminController ..> LargeTransactionService
+    AdminController ..> AccountClosureService
+  }
+
+  package "Services" {
+    class LargeTransactionService {
+      +handle(id: int, data: Array) : void
+    }
+    class AccountClosureService {
+      +handle(id: int, data: Array) : void
+    }
+    class NotificationService {
+      +send(user: User, title: String, body: String, data: Array) : void
+      +sendMulticast(tokens: Array, title: String, body: String, data: Array) : void
+    }
+
+    LargeTransactionService --> FrozenAccountHandler
+    LargeTransactionService --> BalanceHandler
+    LargeTransactionService --> LargeTransactionLoggerDecorator
+  }
+
+  package "Domain Models" {
+    class User {
+      +customers() : Customer
+    }
+    class Customer {
+      +user() : User
+      +recurringTransfers() : RecurringTransfer[]
+      +bankAccounts() : BankAccount[]
+      +getMainAccountAttribute() : BankAccount
+      +getAllBalanceAttribute() : float
+    }
+    class BankAccount {
+      +customer() : Customer
+      +subAccounts() : SubAccount[]
+      +transactions() : Transaction[]
+      +freezeRequests() : FreezeRequest[]
+      +closureRequests() : AccountClosureRequest[]
+      +scopeActive(query) : mixed
+      +scopeFrozen(query) : mixed
+      +scopeClosed(query) : mixed
+      +getTotalBalanceAttribute() : float
+    }
+    class SubAccount {
+      +bankAccount() : BankAccount
+      +transactions() : Transaction[]
+      +scopeActive(query) : mixed
+    }
+    class Transaction {
+      +bankAccount() : BankAccount
+      +subAccount() : SubAccount
+      +performedBy() : User
+      +scopeDeposits(query) : mixed
+      +scopeWithdrawals(query) : mixed
+      +scopeTransfers(query) : mixed
+      +scopeByTeller(query, tellerId: int) : mixed
+      +largeRequest() : LargeTransactionRequest
+    }
+    class LargeTransactionRequest {
+      +fromAccount() : BankAccount
+      +toAccount() : BankAccount
+      +transaction() : Transaction
+      +approvedBy() : User
+      +scopePending(query) : mixed
+    }
+    class AccountClosureRequest {
+      +bankAccount() : BankAccount
+      +approvedBy() : User
+      +scopePending(query) : mixed
+      +scopeApproved(query) : mixed
+      +scopeRejected(query) : mixed
+    }
+    class FreezeRequest {
+      +bankAccount() : BankAccount
+      +processedBy() : User
+      +scopePending(query) : mixed
+      +scopeFreeze(query) : mixed
+      +scopeUnfreeze(query) : mixed
+      +scopeApproved(query) : mixed
+      +scopeRejected(query) : mixed
+    }
+    class RecurringTransfer {
+      +customer() : Customer
+      +fromAccount() : BankAccount
+      +toAccount() : BankAccount
+      +calculateNextExecution() : Carbon
+    }
+
+    User "1" o-- "1" Customer
+    Customer "1" o-- "*" BankAccount
+    BankAccount "1" o-- "*" SubAccount
+    BankAccount "1" o-- "*" Transaction
+    BankAccount "1" o-- "*" FreezeRequest
+    BankAccount "1" o-- "*" AccountClosureRequest
+    Transaction "1" o-- "0..1" LargeTransactionRequest
+    LargeTransactionRequest --> BankAccount : fromAccount
+    LargeTransactionRequest --> BankAccount : toAccount
+    SubAccount "1" o-- "*" Transaction
+    RecurringTransfer --> BankAccount : fromAccount
+    RecurringTransfer --> BankAccount : toAccount
+  }
+
+  package "Infrastructure" {
+    class ExecuteRecurringTransfers {
+      +handle() : int
+    }
+    class RoleMiddleware {
+      +handle(req: Request, next: Closure, roles: String) : Response
+    }
+
+    ExecuteRecurringTransfers ..> RecurringTransfer
+    ExecuteRecurringTransfers ..> SubAccount
+    ExecuteRecurringTransfers ..> Transaction
+  }
+}
+@enduml

@@ -1,0 +1,31 @@
+@startuml
+scale 1600*1600
+top to bottom direction
+hide empty members
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+
+interface TransactionStrategy {
+  +execute(account : BankAccount, amount : float, subAccount : SubAccount) : float
+}
+
+abstract class TransactionDecorator {
+  +__construct(strategy : TransactionStrategy)
+}
+TransactionDecorator ..|> TransactionStrategy
+
+class LoggingTransactionDecorator {
+  +__construct(strategy : TransactionStrategy)
+  +execute(account : BankAccount, amount : float, subAccount : SubAccount) : float
+}
+
+class BankAccount
+class SubAccount
+class Transaction {
+  +create(...) : Transaction
+}
+
+LoggingTransactionDecorator --|> TransactionDecorator
+LoggingTransactionDecorator ..> TransactionStrategy : wraps
+LoggingTransactionDecorator ..> Transaction : creates
+@enduml

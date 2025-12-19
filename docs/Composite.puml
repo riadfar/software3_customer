@@ -1,0 +1,43 @@
+@startuml
+scale 1600*1600
+top to bottom direction
+hide empty members
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+
+interface ReportComponent {
+  +getData() : Object
+}
+
+class ReportGroup {
+  +add(component : ReportComponent) : void
+  +getData() : Object
+}
+
+class SystemOverviewComponent {
+  +getData() : Object
+}
+
+class PendingRequestsComponent {
+  +getData() : Object
+}
+
+class TransactionsSummaryComponent {
+  +__construct(from : Carbon, to : Carbon)
+  +getData() : Object
+}
+
+class RecentTransactionsComponent {
+  +getData() : Object
+}
+
+class Carbon
+
+ReportGroup ..|> ReportComponent
+SystemOverviewComponent ..|> ReportComponent
+PendingRequestsComponent ..|> ReportComponent
+TransactionsSummaryComponent ..|> ReportComponent
+RecentTransactionsComponent ..|> ReportComponent
+
+ReportGroup o-- ReportComponent : components
+@enduml

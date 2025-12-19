@@ -1,0 +1,24 @@
+@startuml
+scale 1600*1600
+top to bottom direction
+hide empty members
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+
+abstract class TransferHandler {
+  +setNext(handler : TransferHandler) : TransferHandler
+  +handle(request : Object) : Object
+}
+
+class BalanceCheckHandler {
+  +handle(request : Object) : Object
+}
+
+class LargeAmountHandler {
+  +handle(request : Object) : Object
+}
+
+TransferHandler o--> TransferHandler : next
+BalanceCheckHandler --|> TransferHandler
+LargeAmountHandler --|> TransferHandler
+@enduml

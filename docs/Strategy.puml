@@ -1,0 +1,64 @@
+@startuml
+scale 1600*1600
+top to bottom direction
+hide empty members
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+
+package "Transaction Strategy" {
+  interface TransactionStrategy {
+    +execute(account : BankAccount, amount : float, subAccount : SubAccount) : float
+  }
+
+  class DepositStrategy {
+    +execute(account : BankAccount, amount : float, subAccount : SubAccount) : float
+  }
+
+  class WithdrawStrategy {
+    +execute(account : BankAccount, amount : float, subAccount : SubAccount) : float
+  }
+
+  class TransactionContext {
+    +setStrategy(strategy : TransactionStrategy) : void
+    +execute(account : BankAccount, amount : float, subAccount : SubAccount) : float
+  }
+
+  DepositStrategy ..|> TransactionStrategy
+  WithdrawStrategy ..|> TransactionStrategy
+  TransactionContext --> TransactionStrategy : strategy
+}
+
+package "Transfer Strategy" {
+  interface TransferStrategy {
+    +execute(from : AccountComponent, to : AccountComponent, amount : float, fromSub : AccountComponent, toSub : AccountComponent) : Array
+  }
+
+  class NormalTransfer {
+    +execute(from : AccountComponent, to : AccountComponent, amount : float, fromSub : AccountComponent, toSub : AccountComponent) : Array
+  }
+
+  class LargeTransfer {
+    +execute(from : AccountComponent, to : AccountComponent, amount : float, fromSub : AccountComponent, toSub : AccountComponent) : Array
+  }
+
+  NormalTransfer ..|> TransferStrategy
+  LargeTransfer ..|> TransferStrategy
+}
+
+package "Large Transaction Strategy" {
+  interface LargeTransactionStrategy {
+    +handle(request : LargeTransactionRequest) : void
+  }
+
+  class ApproveLargeTransaction {
+    +handle(request : LargeTransactionRequest) : void
+  }
+
+  class RejectLargeTransaction {
+    +handle(request : LargeTransactionRequest) : void
+  }
+
+  ApproveLargeTransaction ..|> LargeTransactionStrategy
+  RejectLargeTransaction ..|> LargeTransactionStrategy
+}
+@enduml
